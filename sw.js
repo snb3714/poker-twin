@@ -1,4 +1,4 @@
-const CACHE = "poker-twin-v14";
+const CACHE = "poker-twin-v15";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", (e) => {

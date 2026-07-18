@@ -332,8 +332,10 @@ react-dom/cjs/react-dom-client.production.js:
 .trk-chips{display:flex; flex-wrap:wrap; gap:6px;}
 .trk-chip{min-height:30px; padding:4px 12px; border-radius:999px; border:1px solid var(--line); background:var(--surface); color:var(--mut); font-size:12px; cursor:pointer; font-family:var(--body);}
 .trk-chip.on{border-color:var(--gold); color:var(--gold); background:rgba(215,165,74,.1);}
-.trk-input{width:100%; background:var(--raised); border:1px solid var(--line); border-radius:10px; color:var(--text); font-size:16px; padding:10px 12px; font-family:var(--body); color-scheme:dark;}
+.trk-input{width:100%; min-width:0; background:var(--raised); border:1px solid var(--line); border-radius:10px; color:var(--text); font-size:16px; padding:10px 12px; font-family:var(--body); color-scheme:dark; -webkit-appearance:none; appearance:none;}
 .trk-input:focus{outline:none; border-color:var(--focus);}
+input[type="date"].trk-input{display:block; min-height:44px; -webkit-min-logical-width:0;}
+.trk-grid2 > div, .trk-grid2 > input{min-width:0;}
 .trk-label{font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.6px; margin:10px 0 4px; display:block;}
 .trk-grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
 .trk-table{width:100%; border-collapse:collapse; font-size:13px;}
@@ -351,6 +353,19 @@ react-dom/cjs/react-dom-client.production.js:
 .trk-hbar-track{flex:1; height:16px; position:relative; background:rgba(255,255,255,.03); border-radius:3px;}
 .trk-hbar{position:absolute; top:2px; bottom:2px; border-radius:3px; min-width:2px;}
 .trk-hbar-val{width:70px; font-size:12px; flex:none;}
+.trk-cal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
+.trk-cal-title{font-family:var(--disp); font-weight:600; font-size:14px;}
+.trk-cal-total{font-size:12px; margin-left:auto; margin-right:10px;}
+.trk-cal-nav{background:none; border:1px solid var(--line); border-radius:8px; color:var(--mut); font-size:16px; cursor:pointer; padding:2px 10px;}
+.trk-cal{display:grid; grid-template-columns:repeat(7,1fr); gap:3px;}
+.trk-cal-dow{font-size:9px; color:var(--mut); text-align:center; text-transform:uppercase; padding:2px 0;}
+.trk-cal-cell{min-height:40px; border-radius:6px; background:rgba(255,255,255,.02); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; padding:2px 1px;}
+.trk-cal-cell.blank{background:none;}
+.trk-cal-cell.win{background:rgba(79,209,139,.14);}
+.trk-cal-cell.loss{background:rgba(238,92,99,.14);}
+.trk-cal-cell.today{box-shadow:inset 0 0 0 1px var(--gold);}
+.trk-cal-day{font-size:9px; color:var(--mut);}
+.trk-cal-val{font-size:10px; font-weight:600;}
 .trk-filterhead{display:flex; align-items:center; justify-content:space-between; cursor:pointer;}
 .trk-filterhead .trk-charttitle{margin-bottom:0;}
 .trk-badge{background:var(--gold); color:#1A1408; border-radius:999px; font-size:11px; font-weight:700; padding:1px 8px;}
@@ -371,6 +386,7 @@ react-dom/cjs/react-dom-client.production.js:
     showFilters: false,
     filters: { from: "", to: "", stakes: [], loc: "all", venue: "all" },
     sort: { key: "date", dir: -1 },
+    cal: null,
     modal: null
   };
 
@@ -579,6 +595,50 @@ react-dom/cjs/react-dom-client.production.js:
       + "</svg>";
   }
 
+  // ---- calendar ----
+  var MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  function compact(v) {
+    var a = Math.abs(v);
+    var s = a >= 1000 ? (a / 1000).toFixed(a >= 10000 ? 0 : 1).replace(/\.0$/, "") + "k" : String(Math.round(a));
+    return (v < 0 ? "-" : "+") + s;
+  }
+  function calHTML(list) {
+    var y = ui.cal.y, m = ui.cal.m;
+    var byDay = {}, monthNet = 0, hasAny = false;
+    list.forEach(function (s) {
+      var p = s.date.split("-");
+      if (+p[0] === y && +p[1] === m + 1) {
+        var d = +p[2];
+        byDay[d] = (byDay[d] || 0) + net(s);
+        monthNet += net(s);
+        hasAny = true;
+      }
+    });
+    var first = new Date(y, m, 1).getDay();
+    var days = new Date(y, m + 1, 0).getDate();
+    var t = new Date();
+    var isThisMonth = t.getFullYear() === y && t.getMonth() === m;
+    var cells = ["S", "M", "T", "W", "T", "F", "S"].map(function (d) {
+      return '<div class="trk-cal-dow">' + d + "</div>";
+    }).join("");
+    for (var b = 0; b < first; b++) cells += '<div class="trk-cal-cell blank"></div>';
+    for (var d = 1; d <= days; d++) {
+      var has = Object.prototype.hasOwnProperty.call(byDay, d);
+      var v = byDay[d] || 0;
+      var klass = "trk-cal-cell" + (has ? (v > 0 ? " win" : v < 0 ? " loss" : "") : "") + (isThisMonth && t.getDate() === d ? " today" : "");
+      cells += '<div class="' + klass + '"><span class="trk-cal-day">' + d + "</span>"
+        + (has ? '<span class="trk-cal-val ' + cls(v) + '">' + esc(compact(v)) + "</span>" : "")
+        + "</div>";
+    }
+    return '<div class="trk-cal-head">'
+      + '<button class="trk-cal-nav" data-act="cal-prev">‹</button>'
+      + '<div class="trk-cal-title" style="margin-left:10px">' + MONTHS[m] + " " + y + "</div>"
+      + '<div class="trk-cal-total ' + cls(monthNet) + '">' + (hasAny ? esc(signed(monthNet)) : "") + "</div>"
+      + '<button class="trk-cal-nav" data-act="cal-next">›</button>'
+      + "</div>"
+      + '<div class="trk-cal">' + cells + "</div>";
+  }
+
   // ---- table ----
   function sortedForTable(list) {
     var k = ui.sort.key, dir = ui.sort.dir;
@@ -770,6 +830,7 @@ react-dom/cjs/react-dom-client.production.js:
       + '<div class="trk-card"><div class="trk-charttitle">Cumulative profit</div>' + chartLine(list) + "</div>"
       + '<div class="trk-card"><div class="trk-charttitle">Profit by stakes</div>' + chartStakes(list) + "</div>"
       + '<div class="trk-card"><div class="trk-charttitle">Session results</div>' + chartHist(list) + "</div>"
+      + '<div class="trk-card"><div class="trk-charttitle">Daily P/L</div>' + calHTML(list) + "</div>"
       + '<div class="trk-card">' + tableHTML(list) + "</div>"
       + "</div>"
       + modal
@@ -863,6 +924,8 @@ react-dom/cjs/react-dom-client.production.js:
         render();
       }
       else if (act === "f-reset") { ui.filters = { from: "", to: "", stakes: [], loc: "all", venue: "all" }; render(); }
+      else if (act === "cal-prev") { ui.cal.m--; if (ui.cal.m < 0) { ui.cal.m = 11; ui.cal.y--; } render(); }
+      else if (act === "cal-next") { ui.cal.m++; if (ui.cal.m > 11) { ui.cal.m = 0; ui.cal.y++; } render(); }
       else if (act === "m-cancel") { ui.modal = null; render(); }
       else if (act === "m-backdrop") { if (ev.target === el) { ui.modal = null; render(); } }
       else if (act === "m-loc") {
@@ -917,6 +980,10 @@ react-dom/cjs/react-dom-client.production.js:
 
   window.__openTracker = function () {
     state = load();
+    if (!ui.cal) {
+      var t = new Date();
+      ui.cal = { y: t.getFullYear(), m: t.getMonth() };
+    }
     ui.open = true;
     render();
   };
@@ -926,7 +993,7 @@ react-dom/cjs/react-dom-client.production.js:
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
     try {
-      const registration = await navigator.serviceWorker.register("sw.js?v=15", { updateViaCache: "none" });
+      const registration = await navigator.serviceWorker.register("sw.js?v=16", { updateViaCache: "none" });
       await registration.update();
 
       if (registration.waiting) {
